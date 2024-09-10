@@ -42,6 +42,19 @@ void MainWindow::update_bookmarks() {
     int index = 0;
     ui -> listWidget-> clear();
     for (const auto& bookmark : services) {
-        ui -> listWidget -> addItem(bookmark.second.getFriendlyName().c_str());
+        ui -> listWidget -> addItem(bookmark.second.deviceId_.c_str());
+    }
+}
+
+
+void MainWindow::on_pushButton_2_clicked()
+{
+    try {
+        if (ui -> listWidget -> selectedItems().size() != 0) {
+            std::string text = ui -> listWidget-> currentItem() -> text().toStdString();
+            std::cout << text << std::endl;
+        }
+    } catch (std::exception e) {
+        std::cerr<<"Error";
     }
 }

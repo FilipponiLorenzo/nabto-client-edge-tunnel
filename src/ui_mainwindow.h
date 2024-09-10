@@ -33,6 +33,7 @@ public:
     QListWidget *listWidget;
     QLabel *label;
     QLabel *label_2;
+    QPushButton *pushButton_2;
     QMenuBar *menubar;
     QMenu *menuNabto_application;
     QStatusBar *statusbar;
@@ -41,7 +42,7 @@ public:
     {
         if (MainWindow->objectName().isEmpty())
             MainWindow->setObjectName("MainWindow");
-        MainWindow->resize(800, 600);
+        MainWindow->resize(1076, 600);
         centralwidget = new QWidget(MainWindow);
         centralwidget->setObjectName("centralwidget");
         lineEdit = new QLineEdit(centralwidget);
@@ -59,10 +60,13 @@ public:
         label_2 = new QLabel(centralwidget);
         label_2->setObjectName("label_2");
         label_2->setGeometry(QRect(150, 90, 67, 17));
+        pushButton_2 = new QPushButton(centralwidget);
+        pushButton_2->setObjectName("pushButton_2");
+        pushButton_2->setGeometry(QRect(8, 504, 351, 21));
         MainWindow->setCentralWidget(centralwidget);
         menubar = new QMenuBar(MainWindow);
         menubar->setObjectName("menubar");
-        menubar->setGeometry(QRect(0, 0, 800, 22));
+        menubar->setGeometry(QRect(0, 0, 1076, 22));
         menuNabto_application = new QMenu(menubar);
         menuNabto_application->setObjectName("menuNabto_application");
         MainWindow->setMenuBar(menubar);
@@ -83,6 +87,7 @@ public:
         pushButton->setText(QCoreApplication::translate("MainWindow", "Connect", nullptr));
         label->setText(QString());
         label_2->setText(QCoreApplication::translate("MainWindow", "Devices", nullptr));
+        pushButton_2->setText(QCoreApplication::translate("MainWindow", "Select Device", nullptr));
         menuNabto_application->setTitle(QCoreApplication::translate("MainWindow", "Connect Device", nullptr));
     } // retranslateUi
 

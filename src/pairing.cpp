@@ -11,20 +11,19 @@
 
 using json = nlohmann::json;
 
-static bool write_config(Configuration::DeviceInfo& Device);
+static std::string write_config(Configuration::DeviceInfo& Device);
 
-static bool write_config(std::shared_ptr<nabto::client::Connection> connection, const std::string& directCandidate = "");
-static bool interactive_pair_connection(std::shared_ptr<nabto::client::Connection> connection, const std::string& usernameInvite = "", const std::string& password = "");
+static std::string write_config(std::shared_ptr<nabto::client::Connection> connection, const std::string& directCandidate = "");
+static std::string interactive_pair_connection(std::shared_ptr<nabto::client::Connection> connection, const std::string& usernameInvite = "", const std::string& password = "");
 
-static bool handle_already_paired(std::shared_ptr<nabto::client::Connection> connection, const std::string& directCandidate = "")
+static std::string handle_already_paired(std::shared_ptr<nabto::client::Connection> connection, const std::string& directCandidate = "")
 {
     auto device = Configuration::GetPairedDevice(connection->getDeviceFingerprint());
+    std::cout << device.get() << std::endl;
     if (device) {
-        std::cout << "The client is alredy paired with the device the pairing has the bookmark " << device->getIndex() << std::endl;
-        return true;
+        return "The client is already paired with the device";
     } else {
-        std::cout << "The client is already paired with the device. However the client does not have the state saved, recreating the client state" << std::endl;
-        return write_config(connection, directCandidate);
+        return "The client is already paired with the device. However the client does not have the state saved, recreating the client state";
     }
 }
 
@@ -152,13 +151,12 @@ static bool password_invite_pair(std::shared_ptr<nabto::client::Connection> conn
     return password_invite_pair_password(connection, username, password);
 }
 
-bool interactive_pair(std::shared_ptr<nabto::client::Context> Context)
+std::string interactive_pair(std::shared_ptr<nabto::client::Context> Context)
 {
     std::cout << "Scanning for local devices for 2 seconds." << std::endl;
     auto devices = nabto::examples::common::Scanner::scan(Context, std::chrono::milliseconds(2000), "tcptunnel");
     if (devices.size() == 0) {
-        std::cout << "Did not find any local devices, is the device on the same local network as the client?" << std::endl;
-        return false;
+        return "Did not find any local devices, is the device on the same local network as the client?";
     }
 
     std::cout << "Found " << devices.size() << " local devices." << std::endl;
@@ -175,7 +173,7 @@ bool interactive_pair(std::shared_ptr<nabto::client::Context> Context)
 
     int deviceChoice = IAM::interactive_choice("Choose a device: ", 0, devices.size());
     if (deviceChoice == -1) {
-        return false;
+        return "Error";
     }
 
     auto connection = Context->createConnection();
@@ -189,7 +187,7 @@ bool interactive_pair(std::shared_ptr<nabto::client::Context> Context)
 
         std::string PrivateKey;
         if (!Configuration::GetPrivateKey(Context, PrivateKey)) {
-            return false;
+            return "Error";
         }
         connection->setPrivateKey(PrivateKey);
 
@@ -207,10 +205,9 @@ bool interactive_pair(std::shared_ptr<nabto::client::Context> Context)
                 std::cerr << "Not Connected." << std::endl;
                 std::cerr << " The Local status is: " << localStatus.getDescription() << std::endl;
                 std::cerr << " The Remote status is: " << remoteStatus.getDescription() << std::endl;
-            } else {
-                std::cerr << "Connect failed " << e.what() << std::endl;
+                return "Devices not Connected";
             }
-            return false;
+            return "Connect failed ";
         }
 
         std::cout << "Connected to the device. ProductId: " <<  productId << " DeviceId: " << deviceId << std::endl;
@@ -218,7 +215,7 @@ bool interactive_pair(std::shared_ptr<nabto::client::Context> Context)
     return interactive_pair_connection(connection);
 }
 
-bool interactive_pair_connection(std::shared_ptr<nabto::client::Connection> connection, const std::string& usernameInvite, const std::string& password)
+std::string interactive_pair_connection(std::shared_ptr<nabto::client::Connection> connection, const std::string& usernameInvite, const std::string& password)
 {
     {
         IAM::IAMError ec;
@@ -233,8 +230,7 @@ bool interactive_pair_connection(std::shared_ptr<nabto::client::Connection> conn
     std::unique_ptr<IAM::PairingInfo> pi;
     std::tie(ec, pi) = IAM::get_pairing_info(connection);
     if (!ec.ok()) {
-        std::cerr << "Cannot Get CoAP /iam/pairing" << std::endl;
-        return false;
+        return "Cannot Get CoAP /iam/pairing";
     }
     std::vector<IAM::PairingMode> modes;
     auto ms = pi->getModes();
@@ -243,8 +239,7 @@ bool interactive_pair_connection(std::shared_ptr<nabto::client::Connection> conn
     IAM::PairingMode mode = IAM::PairingMode::NONE;
 
     if (modes.size() == 0) {
-        std::cerr << "No supported pairing modes" << std::endl;
-        return false;
+        return "No supported pairing modes";
     } else if (modes.size() == 1) {
         mode = modes[0];
     } else if (modes.size() > 1) {
@@ -254,7 +249,7 @@ bool interactive_pair_connection(std::shared_ptr<nabto::client::Connection> conn
         }
         int choice = IAM::interactive_choice("Choose a pairing mode: ", 0, modes.size());
         if (choice == -1) {
-            return false;
+            return "Error";
         } else {
             mode = modes[choice];
         }
@@ -262,23 +257,23 @@ bool interactive_pair_connection(std::shared_ptr<nabto::client::Connection> conn
 
     if (mode == IAM::PairingMode::LOCAL_INITIAL) {
          if (!local_pair_initial(connection)) {
-            return false;
+            return "Error";
         }
     } else if (mode == IAM::PairingMode::LOCAL_OPEN) {
          if (!local_pair_open_interactive(connection)) {
-            return false;
+            return "Error";
         }
     } else if (mode == IAM::PairingMode::PASSWORD_OPEN) {
         if (!password_pair_open_interactive(connection, password)) {
-            return false;
+            return "Error";
         }
     } else if (mode == IAM::PairingMode::PASSWORD_INVITE) {
         if (!password_invite_pair(connection, usernameInvite, password)) {
-            return false;
+            return "Error";
         }
     } else {
         std::cerr << "No supported pairing modes" << std::endl;
-        return false;
+        return "Error";
     }
     return write_config(connection);
 }
@@ -311,10 +306,10 @@ static std::map<std::string, std::string> parseStringArgs(const std::string pair
     return args;
 }
 
-bool param_pair(std::shared_ptr<nabto::client::Context> ctx, const std::string& productId, const std::string& deviceId, const std::string& usernameInvite, const std::string& password, const std::string& sct);
+std::string param_pair(std::shared_ptr<nabto::client::Context> ctx, const std::string& productId, const std::string& deviceId, const std::string& usernameInvite, const std::string& password, const std::string& sct);
 
 
-bool string_pair(std::shared_ptr<nabto::client::Context> ctx, const std::string& pairingString)
+std::string string_pair(std::shared_ptr<nabto::client::Context> ctx, const std::string& pairingString)
 {
     std::map<std::string, std::string> args = parseStringArgs(pairingString);
     std::string productId = args["p"];
@@ -322,15 +317,16 @@ bool string_pair(std::shared_ptr<nabto::client::Context> ctx, const std::string&
     std::string pairingPassword = args["pwd"];
     std::string sct = args["sct"];
     std::string usernameInvite = args["u"];
+    std::cout<<usernameInvite<<std::endl;
 
     return param_pair(ctx, productId, deviceId, usernameInvite, pairingPassword, sct);
 }
 
-bool param_pair(std::shared_ptr<nabto::client::Context> ctx, const std::string& productId, const std::string& deviceId, const std::string& usernameInvite, const std::string& pairingPassword, const std::string& sct)
+std::string param_pair(std::shared_ptr<nabto::client::Context> ctx, const std::string& productId, const std::string& deviceId, const std::string& usernameInvite, const std::string& pairingPassword, const std::string& sct)
 {
     auto Config = Configuration::GetConfigInfo();
     if (!Config) {
-        return false;
+        return "Error";
     }
 
     auto connection = ctx->createConnection();
@@ -339,7 +335,7 @@ bool param_pair(std::shared_ptr<nabto::client::Context> ctx, const std::string& 
     std::string privateKey;
 
     if(!Configuration::GetPrivateKey(ctx, privateKey)) {
-        return false;
+        return "Error";
     }
 
     connection->setPrivateKey(privateKey);
@@ -360,10 +356,11 @@ bool param_pair(std::shared_ptr<nabto::client::Context> ctx, const std::string& 
             std::cerr << "Not Connected." << std::endl;
             std::cerr << " The Local status is: " << localStatus.getDescription() << std::endl;
             std::cerr << " The Remote status is: " << remoteStatus.getDescription() << std::endl;
+            return "Device Not Connected";
         } else {
             std::cerr << "Connect failed " << e.what() << std::endl;
         }
-        return false;
+        return "Error";
     }
 
     std::cout << "Connected to device ProductId: " <<  productId << " DeviceId: " << deviceId << std::endl;
@@ -371,13 +368,13 @@ bool param_pair(std::shared_ptr<nabto::client::Context> ctx, const std::string& 
     return interactive_pair_connection(connection, usernameInvite, pairingPassword);
 }
 
-bool direct_pair(std::shared_ptr<nabto::client::Context> Context, const std::string& host)
+std::string direct_pair(std::shared_ptr<nabto::client::Context> Context, const std::string& host)
 {
     auto connection = Context->createConnection();
     std::string privateKey;
 
     if(!Configuration::GetPrivateKey(Context, privateKey)) {
-        return false;
+        return "Error";
     }
 
     uint16_t port = 5592;
@@ -408,12 +405,12 @@ bool direct_pair(std::shared_ptr<nabto::client::Context> Context, const std::str
             std::cerr << e.what();
         }
         std::cerr << std::endl;
-        return false;
+        return "Could not make a direct connection to the host";
     }
     return interactive_pair_connection(connection);
 }
 
-bool write_config(std::shared_ptr<nabto::client::Connection> connection, const std::string& host)
+std::string write_config(std::shared_ptr<nabto::client::Connection> connection, const std::string& host)
 {
     Configuration::DeviceInfo device;
 
@@ -422,7 +419,7 @@ bool write_config(std::shared_ptr<nabto::client::Connection> connection, const s
     std::tie(ec, pi) = IAM::get_pairing_info(connection);
     if (!ec.ok()) {
         std::cerr << "CoAP GET /iam/pairing failed, pairing failed" << std::endl;
-        return false;
+        return "CoAP GET /iam/pairing failed, pairing failed";
     }
 
     device.productId_ = pi->getProductId();
@@ -437,13 +434,13 @@ bool write_config(std::shared_ptr<nabto::client::Connection> connection, const s
     if (!ec.ok()) {
         std::cerr << "Pairing failed" << std::endl;
         ec.printError();
-        return false;
+        return  "Pairing failed";
     }
     device.sct_ = user->getSct();
     return write_config(device);
 }
 
-bool write_config(Configuration::DeviceInfo& device)
+std::string write_config(Configuration::DeviceInfo& device)
 {
     Configuration::AddPairedDeviceToBookmarks(device);
 
@@ -452,8 +449,7 @@ bool write_config(Configuration::DeviceInfo& device)
 
 
     if (!Configuration::WriteStateFile()) {
-        std::cerr << "Failed to write state to " << Configuration::GetStateFilePath() << std::endl;
-        return false;
+        return "Failed to write state to ";
     }
-    return true;
+    return "Connesso correttamente";
 }

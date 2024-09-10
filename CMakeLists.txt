@@ -1,10 +1,18 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.16)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(nabto-client-edge-tunnel)
 
 find_package(Threads)
+# Imposta il percorso Qt6_DIR al percorso della tua installazione Qt6
+set(Qt6_DIR "~/Qt/6.7.2/gcc_64/lib/cmake/Qt6")
+
+# Trova Qt6
+set(CMAKE_AUTOMOC ON)
+
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets LinguistTools)
 
 include_directories(include .)
 include_directories(include/3rdparty)
@@ -31,6 +39,8 @@ elseif(APPLE)
     link_directories(${CMAKE_SOURCE_DIR}/lib/macos)
 endif()
 
+
+
 add_subdirectory(nabto_cpp_wrapper)
 
 set(src
@@ -41,10 +51,12 @@ set(src
     src/iam.cpp
     src/iam_interactive.cpp
     src/version.cpp
+    src/MainWindow.cpp
 )
 
 add_executable(edge_tunnel_client ${platform_src} ${src})
-target_link_libraries(edge_tunnel_client cpp_wrapper ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(edge_tunnel_client cpp_wrapper  ${CMAKE_THREAD_LIBS_INIT}
+Qt6::Widgets)
 
 add_dependencies(edge_tunnel_client GENERATE_VERSION)
 

@@ -8,3 +8,8 @@ _install
 callgrind*
 perf.data*
 src/version.cpp
+nabto_cpp_wrapper/
+.vscode/
+.qt/
+CMakeFiles/
+edge_tunnel_client_autogen

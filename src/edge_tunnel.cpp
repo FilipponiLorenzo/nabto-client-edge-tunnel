@@ -1,5 +1,6 @@
 #include <nabto_client.hpp>
 #include <nabto/nabto_client_experimental.h>
+#include <map>
 
 #include "pairing.hpp"
 #include "config.hpp"
@@ -7,15 +8,21 @@
 #include "iam.hpp"
 #include "iam_interactive.hpp"
 #include "version.hpp"
-
+#include <list>
+#include <vector>
 #include <3rdparty/cxxopts.hpp>
 #include <3rdparty/nlohmann/json.hpp>
+#include <iostream>
 
+#include <QApplication>
+#include <QLocale>
+#include <QTranslator>
 #include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <thread>
 #include <future>
+#include "MainWindow.h"
 
 using json = nlohmann::json;
 
@@ -330,211 +337,23 @@ void printDeviceInfo(std::shared_ptr<IAM::PairingInfo> pi)
     }
 }
 
-int main(int argc, char** argv)
-{
-    cxxopts::Options options("Tunnel client", "Nabto tunnel client example.");
+int main(int argc, char** argv){
 
-    std::vector<std::string> services;
-
-    options.add_options("General")
-        ("h,help", "Show help")
-        ("version", "Show version")
-        ("H,home", "Override the directory in which configuration files are saved to.", cxxopts::value<std::string>())
-        ("log-level", "Log level (none|error|info|trace)", cxxopts::value<std::string>()->default_value("error"))
-        ;
-    options.add_options("Bookmarks")
-        ("bookmarks", "List bookmarked devices")
-        ("b,bookmark", "Select a bookmarked device to use with other commands.", cxxopts::value<uint32_t>()->default_value("0"))
-        ("delete-bookmark", "Delete a pairing with a device")
-        ;
-
-    options.add_options("Pairing")
-        ("pair-local", "Pair the client with a tcp tunnel device running on the local network interactively")
-        ("pair-string", "Pair with a tcp tunnel device using a pairing string", cxxopts::value<std::string>())
-        ("pair-direct", "Pair with a tcp tunnel device directly using its ip or hostname", cxxopts::value<std::string>())
-        ;
-
-    options.add_options("IAM")
-        ("users", "List all users on selected device.")
-        ("roles", "List roles available on device.")
-        ("get-me", "Get the user associated with the current connection.")
-        ("get-user", "Get a user.")
-        ("set-role", "Assign a role to a user.")
-        ("delete-user", "Delete a user on device.")
-        ("create-user", "Create a user new interactively in the device.")
-        ("configure-open-pairing", "Configure pairing where users can register themselves in the device.")
-        ("set-friendly-name", "Set the friendly name of the device.", cxxopts::value<std::string>())
-        ("get-device-info","Get information about the device configuration")
-        ;
-
-    options.add_options("TCP Tunnelling")
-        ("services", "List available services on the device")
-        ("service", "Create a tunnel to this service. The default local port is an ephemeral port. A specific local port can be used using the syntax --service <service>:<port> e.g. --service ssh:4242 to establish a tunnel to the ssh service and listen for connections to it on the local TCP port 4242", cxxopts::value<std::vector<std::string> >(services))
-        ;
-
-    try {
-        auto result = options.parse(argc, argv);
-        if (result.count("help"))
-        {
-            std::cout << options.help() << std::endl;
-            PrintGeneralHelp();
-            return 0;
+    QApplication a(argc, argv);
+    std::string homeDir = Configuration::getDefaultHomeDir();
+    Configuration::InitializeWithDirectory(homeDir);
+    QTranslator translator;
+    const QStringList uiLanguages = QLocale::system().uiLanguages();
+    for (const QString &locale : uiLanguages) {
+        const QString baseName = "testQt_" + QLocale(locale).name();
+        if (translator.load(":/i18n/" + baseName)) {
+            a.installTranslator(&translator);
+            break;
         }
-
-        if (result.count("version"))
-        {
-            std::cout << edge_tunnel_client_version() << " (SDK version " << nabto_client_version() << ")" << std::endl;
-            return 0;
-        }
-
-        if (result.count("home")) {
-            Configuration::makeDirectories(result["home"].as<std::string>());
-        } else {
-            Configuration::makeDirectories("");
-        }
-
-        std::string homeDir;
-        if (result.count("home")) {
-            homeDir = result["home"].as<std::string>();
-        } else {
-            homeDir = Configuration::getDefaultHomeDir();
-        }
-
-        Configuration::InitializeWithDirectory(homeDir);
-
-        if (result.count("bookmarks"))
-        {
-            Configuration::PrintBookmarks();
-            return 0;
-        }
-
-        if (result.count("delete-bookmark")) {
-            if (!result.count("bookmark")) {
-                std::cerr << "The argument --bookmark is required when deleting a bookmark." << std::endl;
-            } else {
-                Configuration::DeleteBookmark(result["bookmark"].as<uint32_t>());
-            }
-            return 0;
-        }
-
-        auto context = nabto::client::Context::create();
-
-        context->setLogger(std::make_shared<MyLogger>());
-        context->setLogLevel(result["log-level"].as<std::string>());
-
-        if (result.count("pair-local")) {
-            if (!interactive_pair(context)) {
-                return 1;
-            }
-            return 0;
-        }
-        else if (result.count("pair-string")) {
-            if (!string_pair(context, result["pair-string"].as<std::string>())) {
-                return 1;
-            }
-            return 0;
-        }
-        else if (result.count("pair-direct")) {
-            if (!direct_pair(context, result["pair-direct"].as<std::string>())) {
-                return 1;
-            }
-            return 0;
-        }
-
-        else if (result.count("services") ||
-                 result.count("service") ||
-                 result.count("users") ||
-                 result.count("roles") ||
-                 result.count("set-role") ||
-                 result.count("delete-user") ||
-                 result.count("get-user") ||
-                 result.count("get-me") ||
-                 result.count("create-user") ||
-                 result.count("configure-open-pairing") ||
-                 result.count("set-friendly-name") ||
-                 result.count("get-device-info"))
-
-        {
-            // For all these commands we need a paired device.
-            uint32_t SelectedBookmark = result["bookmark"].as<uint32_t>();
-
-            if (Configuration::HasNoBookmarks()) {
-                std::cerr << "No devices have been paired, start by pairing the client with a device." << std::endl;
-                return 1;
-            }
-
-            auto Device = Configuration::GetPairedDevice(SelectedBookmark);
-            if (!Device)
-            {
-                std::cerr << "The bookmark " << SelectedBookmark << " does not exist" << std::endl;
-                return 1;
-            }
-
-            auto connection = createConnection(context, *Device);
-            if (!connection) {
-                return 1;
-            }
-            std::cout << "Connected to the device " << Device->getFriendlyName() << std::endl;
-
-            bool status = false;
-            if (result.count("services")) {
-                status = list_services(connection);
-            } else if (result.count("service")) {
-                status = tcptunnel(connection, services);
-            } else if (result.count("users")) {
-                status = IAM::list_users(connection);
-            } else if (result.count("roles")) {
-                status = IAM::list_roles(connection);
-            } else if (result.count("set-role")) {
-                status = IAM::set_role_interactive(connection);
-            } else if (result.count("delete-user")) {
-                status = IAM::delete_user_interactive(connection);
-            } else if (result.count("get-user")) {
-                status = IAM::get_user_interactive(connection);
-            } else if (result.count("get-me")) {
-                status = IAM::get_me_interactive(connection);
-            } else if (result.count("create-user")) {
-                status = IAM::create_user_interactive(connection);
-            } else if (result.count("configure-open-pairing")) {
-                status = IAM::configure_open_pairing_interactive(connection);
-            } else if (result.count("set-friendly-name")) {
-                auto ec = IAM::set_friendly_name(
-                    connection, result["set-friendly-name"].as<std::string>());
-                if (ec.ok()) {
-                    std::cout << "Device successfully renamed to "
-                              << result["set-friendly-name"].as<std::string>()
-                              << std::endl;
-                    status = true;
-                } else {
-                    ec.printError();
-                    status = false;
-                }
-            } else if (result.count("get-device-info")) {
-                IAM::IAMError ec; std::shared_ptr<IAM::PairingInfo> pi;
-                std::tie(ec, pi) = IAM::get_pairing_info(connection);
-                if (!ec.ok()) {
-                    ec.printError();
-                    status = false;
-                } else {
-                    printDeviceInfo(pi);
-                    status = true;
-                }
-            }
-            try {
-                connection->close()->waitForResult();
-            } catch(nabto::client::NabtoException& e) {
-                if (e.status().getErrorCode() != nabto::client::Status::STOPPED) {
-                    throw(e);
-                }
-            }
-            return status ? 0 : 1;
-        } else {
-            std::cout << options.help() << std::endl;
-            return 0;
-        }
-    } catch (std::exception& e) {
-        std::cerr << "Invalid Option " << e.what() << std::endl;
-        std::cout << options.help() << std::endl;
-        return 1;
     }
+    MainWindow w;
+    w.show();
+    return a.exec();
+
+    return 0;
 }

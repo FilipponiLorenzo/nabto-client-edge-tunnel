@@ -67,6 +67,7 @@
         "typeinfo": "cpp",
         "valarray": "cpp",
         "unordered_set": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "variant": "cpp"
     },
 }

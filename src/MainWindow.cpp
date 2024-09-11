@@ -212,11 +212,12 @@ std::shared_ptr<nabto::client::Connection> createConnection(std::shared_ptr<nabt
     return connection;
 }
 
-static void get_service(std::shared_ptr<nabto::client::Connection> connection, const std::string& service);
+static nlohmann::json get_service(std::shared_ptr<nabto::client::Connection> connection, const std::string& service);
 static void print_service(const nlohmann::json& service);
 
-bool list_services(std::shared_ptr<nabto::client::Connection> connection)
-{
+std::map<std::string, nlohmann::json> list_services(std::shared_ptr<nabto::client::Connection> connection)
+{   
+    std::map<std::string, nlohmann::json> services;
     auto coap = connection->createCoap("GET", "/tcp-tunnels/services");
     coap->execute()->waitForResult();
     if (coap->getResponseStatusCode() == 205 &&
@@ -228,22 +229,23 @@ bool list_services(std::shared_ptr<nabto::client::Connection> connection)
             std::cout << "Available services ..." << std::endl;
             try {
                 for (auto s : data) {
-                    get_service(connection, s.get<std::string>());
+                    nlohmann::json test = get_service(connection, s);
+                    if (!test.is_null()) {
+                        services.insert({s.get<std::string>(), test});
+                    }
                 }
             } catch(std::exception& e) {
                 std::cerr << "Failed to get services: " << e.what() << std::endl;
-                return false;
+                return {};
             }
         }
-        return true;
-    } else {
-        std::cerr << "could not get list of services" << std::endl;
-        return false;
     }
+    return services;;
 }
 
-void get_service(std::shared_ptr<nabto::client::Connection> connection, const std::string& service)
+nlohmann::json get_service(std::shared_ptr<nabto::client::Connection> connection, const std::string& service)
 {
+    std::cout<<service<<std::endl;
     auto coap = connection->createCoap("GET", "/tcp-tunnels/services/" + service);
     coap->execute()->waitForResult();
     if (coap->getResponseStatusCode() == 205 &&
@@ -251,8 +253,9 @@ void get_service(std::shared_ptr<nabto::client::Connection> connection, const st
     {
         auto cbor = coap->getResponsePayload();
         auto data = json::from_cbor(cbor);
-        print_service(data);
+        return data;
     }
+    return nullptr;
 }
 
 std::string constant_width_string(std::string in) {
@@ -409,13 +412,39 @@ void MainWindow::on_pushButton_2_clicked()
                         return ;
                     }
                     std::cout << "Connected to the device " << Device->getFriendlyName() << std::endl;
-                    bool status = list_services(connection);
-                } 
+                    auto servs = list_services(connection);
+                    update_services_list(servs);;
+                }
             }
             std::cout << text << std::endl;
         }
     } catch (std::exception e) {
-        std::cerr<<"Error";
+        std::cerr<<"Error " << e.what() << std::endl;
     }
 }
+
+void MainWindow::update_services_list(const std::map<std::string, nlohmann::json> servs) {
+    ui->listWidget_2->clear();
+    for (const auto& x : servs) {
+        QString itemText;
+        itemText += "Id: " + QString::fromStdString(x.first) + "\t";
+        
+        if (x.second.contains("Type")) {
+            itemText += "Type: " + QString::fromStdString(x.second["Type"]);
+        } else {
+            itemText += "Type: Unknown";
+        }
+        
+        itemText += "\tPort: ";
+        if (x.second.contains("Port") && x.second["Port"].is_number_integer()) {
+            auto port = x.second["Port"].get<uint16_t>();
+            itemText += QString::fromStdString(std::to_string(port));
+        } else {
+            itemText += "Unknown";
+        }
+        
+        ui->listWidget_2->addItem(itemText);
+    }
+}
+
 

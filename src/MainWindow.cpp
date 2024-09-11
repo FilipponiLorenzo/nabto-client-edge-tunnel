@@ -214,6 +214,7 @@ std::shared_ptr<nabto::client::Connection> createConnection(std::shared_ptr<nabt
 
 static nlohmann::json get_service(std::shared_ptr<nabto::client::Connection> connection, const std::string& service);
 static void print_service(const nlohmann::json& service);
+static std::string extractId(const std::string& input);
 
 std::map<std::string, nlohmann::json> list_services(std::shared_ptr<nabto::client::Connection> connection)
 {   
@@ -296,17 +297,22 @@ bool split_in_service_and_port(const std::string& in, std::string& service, uint
     return true;
 }
 
-bool tcptunnel(std::shared_ptr<nabto::client::Connection> connection, std::vector<std::string> services)
-{
-    std::vector<std::shared_ptr<nabto::client::TcpTunnel> > tunnels;
+bool MainWindow::tcptunnel(std::vector<std::string> services)
+{   
 
+    for (size_t i = 0; i < tunnels.size(); i++)
+    {   
+        std::cout << tunnels[i]  << std::endl;
+    }
+    
+    std::cout << tunnels.size();
     for (auto serviceAndPort : services) {
         std::string service;
         uint16_t localPort;
         if (!split_in_service_and_port(serviceAndPort, service, localPort)) {
             return false;
         }
-
+        
         std::shared_ptr<nabto::client::TcpTunnel> tunnel;
         try {
             tunnel = connection->createTcpTunnel();
@@ -320,16 +326,6 @@ bool tcptunnel(std::shared_ptr<nabto::client::Connection> connection, std::vecto
         tunnels.push_back(tunnel);
     }
 
-    // wait for ctrl c
-    signal(SIGINT, &signalHandler);
-
-    auto closeListener = std::make_shared<CloseListener>();
-    connection->addEventsListener(closeListener);
-    connection_ = connection;
-
-    closeListener->waitForClose();
-    connection->removeEventsListener(closeListener);
-    connection_.reset();
     return true;
 }
 
@@ -356,7 +352,12 @@ void printDeviceInfo(std::shared_ptr<IAM::PairingInfo> pi)
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
-    , ui(new Ui::MainWindow)
+    , ui(new Ui::MainWindow),
+    context(),
+    Device(),
+    SelectedBookmark(),
+    connection(),
+    tunnels()
 {
     ui->setupUi(this);
     update_bookmarks();
@@ -392,7 +393,7 @@ void MainWindow::update_bookmarks() {
 
 void MainWindow::on_pushButton_2_clicked()
 {   
-    auto context = nabto::client::Context::create();
+    context = nabto::client::Context::create();
 
     try {
         if (ui -> listWidget -> selectedItems().size() != 0) {
@@ -401,17 +402,18 @@ void MainWindow::on_pushButton_2_clicked()
             for (const auto& pair : services) {
                 std::string deviceInfo = pair.second.deviceId_.c_str();
                 if (text == deviceInfo) {
-                    auto Device = Configuration::GetPairedDevice(pair.first);
+                    Device = Configuration::GetPairedDevice(pair.first);
                     if (!Device) {
                         std::cerr << "The bookmark " << text << " does not exist" << std::endl;
                     } else {
                         std::cout << "Device Selected " << Device -> getFriendlyName();;
                     }
-                    auto connection = createConnection(context, *Device);
+                    connection = createConnection(context, *Device);
                     if (!connection) {
                         return ;
                     }
                     std::cout << "Connected to the device " << Device->getFriendlyName() << std::endl;
+                    tunnels.clear();
                     auto servs = list_services(connection);
                     update_services_list(servs);;
                 }
@@ -446,5 +448,44 @@ void MainWindow::update_services_list(const std::map<std::string, nlohmann::json
         ui->listWidget_2->addItem(itemText);
     }
 }
+
+
+void MainWindow::on_pushButton_3_clicked(){
+    std::string text = ui -> listWidget_2-> currentItem() -> text().toStdString();
+    std::string ser = extractId(text);
+    std::vector<std::string> services;
+    services.push_back(ser);
+    tcptunnel(services);
+}
+
+
+std::string extractId(const std::string& input) {
+    size_t pos = input.find("Id:");
+    
+    if (pos != std::string::npos) {
+        // Find the start of the value (after potential spaces)
+        size_t start = pos + 3; // 3 is the length of "Id:"
+        while (start < input.size() && input[start] == ' ') {
+            ++start;
+        }
+        
+        // Find the end of the value (before next space or end of string)
+        size_t end = input.find_first_of(" \t", start);
+        
+        // If no ending space found, use the end of the string
+        if (end == std::string::npos) {
+            end = input.size();
+        }
+        
+        return input.substr(start, end - start);
+    }
+    
+    return ""; // Return empty string if "Id:" not found
+}
+
+
+
+
+
 
 

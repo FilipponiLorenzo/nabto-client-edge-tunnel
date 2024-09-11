@@ -215,6 +215,7 @@ std::shared_ptr<nabto::client::Connection> createConnection(std::shared_ptr<nabt
 static nlohmann::json get_service(std::shared_ptr<nabto::client::Connection> connection, const std::string& service);
 static void print_service(const nlohmann::json& service);
 static std::string extractId(const std::string& input);
+static std::string extractNumericPart(const std::string& input);
 
 std::map<std::string, nlohmann::json> list_services(std::shared_ptr<nabto::client::Connection> connection)
 {   
@@ -297,20 +298,14 @@ bool split_in_service_and_port(const std::string& in, std::string& service, uint
     return true;
 }
 
-bool MainWindow::tcptunnel(std::vector<std::string> services)
+std::string MainWindow::tcptunnel(std::vector<std::string> services)
 {   
-
-    for (size_t i = 0; i < tunnels.size(); i++)
-    {   
-        std::cout << tunnels[i]  << std::endl;
-    }
-    
-    std::cout << tunnels.size();
+    std::string str="";
     for (auto serviceAndPort : services) {
         std::string service;
         uint16_t localPort;
         if (!split_in_service_and_port(serviceAndPort, service, localPort)) {
-            return false;
+            return str;
         }
         
         std::shared_ptr<nabto::client::TcpTunnel> tunnel;
@@ -318,15 +313,14 @@ bool MainWindow::tcptunnel(std::vector<std::string> services)
             tunnel = connection->createTcpTunnel();
             tunnel->open(service, localPort)->waitForResult();
         } catch (std::exception& e) {
-            std::cout << "Failed to open a tunnel to " << serviceAndPort << " error: " << e.what() << std::endl;
-            return false;
+            return "Failed to open a tunnel to " + serviceAndPort + " error: " + e.what();
         }
 
-        std::cout << "TCP Tunnel opened for the service " << service << " listening on the local port " << tunnel->getLocalPort() << std::endl;
+        str = "Tunnel opened for '" + service + "' -> local port " + std::to_string(tunnel->getLocalPort());
         tunnels.push_back(tunnel);
+        ui -> listWidget_3 -> addItem(QString::fromStdString(str));
     }
-
-    return true;
+    return str;
 }
 
 void printDeviceInfo(std::shared_ptr<IAM::PairingInfo> pi)
@@ -394,7 +388,6 @@ void MainWindow::update_bookmarks() {
 void MainWindow::on_pushButton_2_clicked()
 {   
     context = nabto::client::Context::create();
-
     try {
         if (ui -> listWidget -> selectedItems().size() != 0) {
             std::map<int, Configuration::DeviceInfo> services = Configuration::PrintBookmarks();
@@ -406,19 +399,21 @@ void MainWindow::on_pushButton_2_clicked()
                     if (!Device) {
                         std::cerr << "The bookmark " << text << " does not exist" << std::endl;
                     } else {
-                        std::cout << "Device Selected " << Device -> getFriendlyName();;
+                        std::cout << "Device Selected " << Device -> getFriendlyName()<<std::endl;;
                     }
                     connection = createConnection(context, *Device);
+
                     if (!connection) {
                         return ;
                     }
+                
                     std::cout << "Connected to the device " << Device->getFriendlyName() << std::endl;
                     tunnels.clear();
                     auto servs = list_services(connection);
                     update_services_list(servs);;
+                    ui -> listWidget_3 -> clear();
                 }
             }
-            std::cout << text << std::endl;
         }
     } catch (std::exception e) {
         std::cerr<<"Error " << e.what() << std::endl;
@@ -445,42 +440,72 @@ void MainWindow::update_services_list(const std::map<std::string, nlohmann::json
             itemText += "Unknown";
         }
         
-        ui->listWidget_2->addItem(itemText);
+        ui-> listWidget_2->addItem(itemText);
     }
 }
 
 
 void MainWindow::on_pushButton_3_clicked(){
+    if (ui -> listWidget_2 -> selectedItems().size() == 0) {
+        return ;
+    }
     std::string text = ui -> listWidget_2-> currentItem() -> text().toStdString();
     std::string ser = extractId(text);
     std::vector<std::string> services;
     services.push_back(ser);
-    tcptunnel(services);
+    std::string string_tcptunnel = tcptunnel(services);
 }
 
+
+void MainWindow::on_pushButton4_clicked()
+{
+    if (ui -> listWidget_3 -> selectedItems().size() == 0) {
+        return ;
+    }
+    QString val = ui -> listWidget_3 -> currentItem() -> text();;
+    std::string port = extractNumericPart(val.toStdString());
+    for (size_t i = 0; i < tunnels.size(); i++){
+        if (std::to_string(tunnels[i] -> getLocalPort()) == port) {
+            std::cout << "erfdeadfriend";
+            tunnels[i] -> close() -> waitForResult();
+            QListWidgetItem* itemToRemove = ui->listWidget_3->takeItem(ui->listWidget_3 -> currentRow());
+            ui -> listWidget_3 -> removeItemWidget(itemToRemove);
+            tunnels.erase(tunnels.begin() + i);
+            std::cout << "erfdead";;
+        } else {
+            std::cout << "else";;
+        }
+    }
+}
 
 std::string extractId(const std::string& input) {
     size_t pos = input.find("Id:");
     
     if (pos != std::string::npos) {
-        // Find the start of the value (after potential spaces)
-        size_t start = pos + 3; // 3 is the length of "Id:"
+        size_t start = pos + 3;
         while (start < input.size() && input[start] == ' ') {
             ++start;
         }
         
-        // Find the end of the value (before next space or end of string)
         size_t end = input.find_first_of(" \t", start);
         
-        // If no ending space found, use the end of the string
         if (end == std::string::npos) {
             end = input.size();
         }
         
         return input.substr(start, end - start);
     }
-    
-    return ""; // Return empty string if "Id:" not found
+    return "";
+}
+
+
+std::string extractNumericPart(const std::string& input) {
+    std::regex re("\\d+");
+    std::smatch match;
+    if (std::regex_search(input, match, re)) {
+        return match.str(0);
+    }
+    return "";
 }
 
 

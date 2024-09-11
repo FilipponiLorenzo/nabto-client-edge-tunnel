@@ -31,7 +31,8 @@ private slots:
     void update_bookmarks();
     void update_services_list(std::map<std::string, nlohmann::json> servs);
     void on_pushButton_3_clicked();
-    bool tcptunnel(std::vector<std::string> services);
+    void on_pushButton4_clicked();
+    std::string tcptunnel(std::vector<std::string> services);
 
 private:
     Ui::MainWindow *ui;

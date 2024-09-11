@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <3rdparty/nlohmann/json.hpp>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -19,7 +20,9 @@ public:
 
 private slots:
     void on_pushButton_clicked();
+    void on_pushButton_2_clicked();
     void update_bookmarks();
+    void update_services_list(std::map<std::string, nlohmann::json> servs);
 
 private:
     Ui::MainWindow *ui;

@@ -40,6 +40,10 @@ public:
     QPushButton *pushButton_3;
     QFrame *line;
     QFrame *line_2;
+    QFrame *line_3;
+    QLabel *label_4;
+    QListWidget *listWidget_3;
+    QPushButton *pushButton4;
     QMenuBar *menubar;
     QMenu *menuNabto_application;
     QStatusBar *statusbar;
@@ -48,7 +52,7 @@ public:
     {
         if (MainWindow->objectName().isEmpty())
             MainWindow->setObjectName("MainWindow");
-        MainWindow->resize(1076, 600);
+        MainWindow->resize(1198, 600);
         centralwidget = new QWidget(MainWindow);
         centralwidget->setObjectName("centralwidget");
         lineEdit = new QLineEdit(centralwidget);
@@ -88,10 +92,24 @@ public:
         line_2->setGeometry(QRect(10, 70, 351, 16));
         line_2->setFrameShape(QFrame::Shape::HLine);
         line_2->setFrameShadow(QFrame::Shadow::Sunken);
+        line_3 = new QFrame(centralwidget);
+        line_3->setObjectName("line_3");
+        line_3->setGeometry(QRect(780, 10, 21, 511));
+        line_3->setFrameShape(QFrame::Shape::VLine);
+        line_3->setFrameShadow(QFrame::Shadow::Sunken);
+        label_4 = new QLabel(centralwidget);
+        label_4->setObjectName("label_4");
+        label_4->setGeometry(QRect(950, 20, 131, 17));
+        listWidget_3 = new QListWidget(centralwidget);
+        listWidget_3->setObjectName("listWidget_3");
+        listWidget_3->setGeometry(QRect(820, 70, 341, 421));
+        pushButton4 = new QPushButton(centralwidget);
+        pushButton4->setObjectName("pushButton4");
+        pushButton4->setGeometry(QRect(828, 520, 331, 21));
         MainWindow->setCentralWidget(centralwidget);
         menubar = new QMenuBar(MainWindow);
         menubar->setObjectName("menubar");
-        menubar->setGeometry(QRect(0, 0, 1076, 22));
+        menubar->setGeometry(QRect(0, 0, 1198, 22));
         menuNabto_application = new QMenu(menubar);
         menuNabto_application->setObjectName("menuNabto_application");
         MainWindow->setMenuBar(menubar);
@@ -114,7 +132,9 @@ public:
         label_2->setText(QCoreApplication::translate("MainWindow", "Devices", nullptr));
         pushButton_2->setText(QCoreApplication::translate("MainWindow", "Select Device", nullptr));
         label_3->setText(QCoreApplication::translate("MainWindow", "Services", nullptr));
-        pushButton_3->setText(QCoreApplication::translate("MainWindow", "Select Service", nullptr));
+        pushButton_3->setText(QCoreApplication::translate("MainWindow", "Start Service", nullptr));
+        label_4->setText(QCoreApplication::translate("MainWindow", "Active Services", nullptr));
+        pushButton4->setText(QCoreApplication::translate("MainWindow", "Stop Service", nullptr));
         menuNabto_application->setTitle(QCoreApplication::translate("MainWindow", "Connect Device", nullptr));
     } // retranslateUi
 

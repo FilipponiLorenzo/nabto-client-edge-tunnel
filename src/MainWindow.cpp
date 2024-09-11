@@ -214,6 +214,8 @@ std::shared_ptr<nabto::client::Connection> createConnection(std::shared_ptr<nabt
 
 static nlohmann::json get_service(std::shared_ptr<nabto::client::Connection> connection, const std::string& service);
 static void print_service(const nlohmann::json& service);
+static std::string extractId(const std::string& input);
+static std::string extractNumericPart(const std::string& input);
 
 std::map<std::string, nlohmann::json> list_services(std::shared_ptr<nabto::client::Connection> connection)
 {   
@@ -296,41 +298,29 @@ bool split_in_service_and_port(const std::string& in, std::string& service, uint
     return true;
 }
 
-bool tcptunnel(std::shared_ptr<nabto::client::Connection> connection, std::vector<std::string> services)
-{
-    std::vector<std::shared_ptr<nabto::client::TcpTunnel> > tunnels;
-
+std::string MainWindow::tcptunnel(std::vector<std::string> services)
+{   
+    std::string str="";
     for (auto serviceAndPort : services) {
         std::string service;
         uint16_t localPort;
         if (!split_in_service_and_port(serviceAndPort, service, localPort)) {
-            return false;
+            return str;
         }
-
+        
         std::shared_ptr<nabto::client::TcpTunnel> tunnel;
         try {
             tunnel = connection->createTcpTunnel();
             tunnel->open(service, localPort)->waitForResult();
         } catch (std::exception& e) {
-            std::cout << "Failed to open a tunnel to " << serviceAndPort << " error: " << e.what() << std::endl;
-            return false;
+            return "Failed to open a tunnel to " + serviceAndPort + " error: " + e.what();
         }
 
-        std::cout << "TCP Tunnel opened for the service " << service << " listening on the local port " << tunnel->getLocalPort() << std::endl;
+        str = "Tunnel opened for '" + service + "' -> local port " + std::to_string(tunnel->getLocalPort());
         tunnels.push_back(tunnel);
+        ui -> listWidget_3 -> addItem(QString::fromStdString(str));
     }
-
-    // wait for ctrl c
-    signal(SIGINT, &signalHandler);
-
-    auto closeListener = std::make_shared<CloseListener>();
-    connection->addEventsListener(closeListener);
-    connection_ = connection;
-
-    closeListener->waitForClose();
-    connection->removeEventsListener(closeListener);
-    connection_.reset();
-    return true;
+    return str;
 }
 
 void printDeviceInfo(std::shared_ptr<IAM::PairingInfo> pi)
@@ -356,7 +346,12 @@ void printDeviceInfo(std::shared_ptr<IAM::PairingInfo> pi)
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
-    , ui(new Ui::MainWindow)
+    , ui(new Ui::MainWindow),
+    context(),
+    Device(),
+    SelectedBookmark(),
+    connection(),
+    tunnels()
 {
     ui->setupUi(this);
     update_bookmarks();
@@ -392,8 +387,7 @@ void MainWindow::update_bookmarks() {
 
 void MainWindow::on_pushButton_2_clicked()
 {   
-    auto context = nabto::client::Context::create();
-
+    context = nabto::client::Context::create();
     try {
         if (ui -> listWidget -> selectedItems().size() != 0) {
             std::map<int, Configuration::DeviceInfo> services = Configuration::PrintBookmarks();
@@ -401,22 +395,25 @@ void MainWindow::on_pushButton_2_clicked()
             for (const auto& pair : services) {
                 std::string deviceInfo = pair.second.deviceId_.c_str();
                 if (text == deviceInfo) {
-                    auto Device = Configuration::GetPairedDevice(pair.first);
+                    Device = Configuration::GetPairedDevice(pair.first);
                     if (!Device) {
                         std::cerr << "The bookmark " << text << " does not exist" << std::endl;
                     } else {
-                        std::cout << "Device Selected " << Device -> getFriendlyName();;
+                        std::cout << "Device Selected " << Device -> getFriendlyName()<<std::endl;;
                     }
-                    auto connection = createConnection(context, *Device);
+                    connection = createConnection(context, *Device);
+
                     if (!connection) {
                         return ;
                     }
+                
                     std::cout << "Connected to the device " << Device->getFriendlyName() << std::endl;
+                    tunnels.clear();
                     auto servs = list_services(connection);
                     update_services_list(servs);;
+                    ui -> listWidget_3 -> clear();
                 }
             }
-            std::cout << text << std::endl;
         }
     } catch (std::exception e) {
         std::cerr<<"Error " << e.what() << std::endl;
@@ -443,8 +440,77 @@ void MainWindow::update_services_list(const std::map<std::string, nlohmann::json
             itemText += "Unknown";
         }
         
-        ui->listWidget_2->addItem(itemText);
+        ui-> listWidget_2->addItem(itemText);
     }
 }
+
+
+void MainWindow::on_pushButton_3_clicked(){
+    if (ui -> listWidget_2 -> selectedItems().size() == 0) {
+        return ;
+    }
+    std::string text = ui -> listWidget_2-> currentItem() -> text().toStdString();
+    std::string ser = extractId(text);
+    std::vector<std::string> services;
+    services.push_back(ser);
+    std::string string_tcptunnel = tcptunnel(services);
+}
+
+
+void MainWindow::on_pushButton4_clicked()
+{
+    if (ui -> listWidget_3 -> selectedItems().size() == 0) {
+        return ;
+    }
+    QString val = ui -> listWidget_3 -> currentItem() -> text();;
+    std::string port = extractNumericPart(val.toStdString());
+    for (size_t i = 0; i < tunnels.size(); i++){
+        if (std::to_string(tunnels[i] -> getLocalPort()) == port) {
+            std::cout << "erfdeadfriend";
+            tunnels[i] -> close() -> waitForResult();
+            QListWidgetItem* itemToRemove = ui->listWidget_3->takeItem(ui->listWidget_3 -> currentRow());
+            ui -> listWidget_3 -> removeItemWidget(itemToRemove);
+            tunnels.erase(tunnels.begin() + i);
+            std::cout << "erfdead";;
+        } else {
+            std::cout << "else";;
+        }
+    }
+}
+
+std::string extractId(const std::string& input) {
+    size_t pos = input.find("Id:");
+    
+    if (pos != std::string::npos) {
+        size_t start = pos + 3;
+        while (start < input.size() && input[start] == ' ') {
+            ++start;
+        }
+        
+        size_t end = input.find_first_of(" \t", start);
+        
+        if (end == std::string::npos) {
+            end = input.size();
+        }
+        
+        return input.substr(start, end - start);
+    }
+    return "";
+}
+
+
+std::string extractNumericPart(const std::string& input) {
+    std::regex re("\\d+");
+    std::smatch match;
+    if (std::regex_search(input, match, re)) {
+        return match.str(0);
+    }
+    return "";
+}
+
+
+
+
+
 
 

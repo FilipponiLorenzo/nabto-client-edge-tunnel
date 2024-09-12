@@ -149,7 +149,7 @@ std::shared_ptr<nabto::client::Connection> createConnection(std::shared_ptr<nabt
         printMissingClientConfig(Configuration::GetConfigFilePath());
         return nullptr;
     }
-
+    
     auto connection = context->createConnection();
     connection->setProductId(device.getProductId());
     connection->setDeviceId(device.getDeviceId());
@@ -370,7 +370,6 @@ void MainWindow::on_pushButton_clicked()
     std::string str = string_pair(context, sct);
     ui->label->setText(QString::fromStdString(str));
     update_bookmarks();
-
 }
 
 
@@ -380,7 +379,16 @@ void MainWindow::update_bookmarks() {
     int index = 0;
     ui -> listWidget-> clear();
     for (const auto& bookmark : services) {
-        ui -> listWidget -> addItem(bookmark.second.deviceId_.c_str());
+        std::shared_ptr<nabto::client::Context>  ctx = nabto::client::Context::create();
+        auto d = Configuration::GetPairedDevice(bookmark.first);
+        auto c = createConnection(ctx, *d);
+        IAM::IAMError ec; std::shared_ptr<IAM::PairingInfo> pi;
+        std::tie(ec, pi) = IAM::get_pairing_info(c);
+        auto str= "Name: " + pi -> getFriendlyName() + "\tId:" + bookmark.second.deviceId_.c_str();
+        ui -> listWidget -> addItem(QString::fromStdString(str));
+        ctx.reset();
+        d.reset();
+        c.reset();
     }
 }
 
@@ -392,9 +400,10 @@ void MainWindow::on_pushButton_2_clicked()
         if (ui -> listWidget -> selectedItems().size() != 0) {
             std::map<int, Configuration::DeviceInfo> services = Configuration::PrintBookmarks();
             std::string text = ui -> listWidget-> currentItem() -> text().toStdString();
+            std::string id = extractId(text);
             for (const auto& pair : services) {
                 std::string deviceInfo = pair.second.deviceId_.c_str();
-                if (text == deviceInfo) {
+                if (id == deviceInfo) {
                     Device = Configuration::GetPairedDevice(pair.first);
                     if (!Device) {
                         std::cerr << "The bookmark " << text << " does not exist" << std::endl;

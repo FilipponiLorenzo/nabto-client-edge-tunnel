@@ -378,17 +378,21 @@ void MainWindow::update_bookmarks() {
     services = Configuration::PrintBookmarks();
     int index = 0;
     ui -> listWidget-> clear();
+
     for (const auto& bookmark : services) {
-        std::shared_ptr<nabto::client::Context>  ctx = nabto::client::Context::create();
-        auto d = Configuration::GetPairedDevice(bookmark.first);
-        auto c = createConnection(ctx, *d);
-        IAM::IAMError ec; std::shared_ptr<IAM::PairingInfo> pi;
-        std::tie(ec, pi) = IAM::get_pairing_info(c);
-        auto str= "Name: " + pi -> getFriendlyName() + "\tId:" + bookmark.second.deviceId_.c_str();
-        ui -> listWidget -> addItem(QString::fromStdString(str));
-        ctx.reset();
-        d.reset();
-        c.reset();
+        try {
+            std::shared_ptr<nabto::client::Context>  ctx = nabto::client::Context::create();
+            auto d = Configuration::GetPairedDevice(bookmark.first);
+            auto c = createConnection(ctx, *d);
+            if (c != nullptr) {
+                IAM::IAMError ec; std::shared_ptr<IAM::PairingInfo> pi;
+                std::tie(ec, pi) = IAM::get_pairing_info(c);                
+                auto str= "Name: " + pi -> getFriendlyName() + "\tId:" + bookmark.second.deviceId_.c_str();
+                ui -> listWidget -> addItem(QString::fromStdString(str));
+            }
+        } catch (std::exception& e) {
+            std::cout << "Failed to open a tunnel to " << bookmark.second.deviceId_.c_str();
+        }
     }
 }
 

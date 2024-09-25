@@ -14,7 +14,7 @@ using json = nlohmann::json;
 static std::string write_config(Configuration::DeviceInfo& Device);
 
 static std::string write_config(std::shared_ptr<nabto::client::Connection> connection, const std::string& directCandidate = "");
-static std::string interactive_pair_connection(std::shared_ptr<nabto::client::Connection> connection, const std::string& usernameInvite = "", const std::string& password = "");
+static std::string interactive_pair_connection(std::shared_ptr<nabto::client::Connection> connection, const std::string& usernameInvite = "", const std::string& password = "",const std::string& user="");
 
 static std::string handle_already_paired(std::shared_ptr<nabto::client::Connection> connection, const std::string& directCandidate = "")
 {
@@ -27,15 +27,10 @@ static std::string handle_already_paired(std::shared_ptr<nabto::client::Connecti
     }
 }
 
-static bool local_pair_open_interactive(std::shared_ptr<nabto::client::Connection> connection)
+static bool local_pair_open_interactive(std::shared_ptr<nabto::client::Connection> connection, const std::string& user)
 {
-    std::string username;
-    std::cout << "The pairing needs a username, the username needs to be unique among the users registered in the device." << std::endl;
-    std::cout << "Username: ";
-    std::cin >> username;
-
     nlohmann::json root;
-    root["Username"] = username;
+    root["Username"] = user;
 
     auto coap = connection->createCoap("POST", "/iam/pairing/local-open");
     coap->setRequestPayload(IAM::CONTENT_FORMAT_APPLICATION_CBOR, nlohmann::json::to_cbor(root));
@@ -91,21 +86,20 @@ static bool password_pair_password(std::shared_ptr<nabto::client::Connection> co
 
 
 
-static bool password_pair_open_interactive(std::shared_ptr<nabto::client::Connection> connection, const std::string& passwordIn = "")
+static bool password_pair_open_interactive(std::shared_ptr<nabto::client::Connection> connection, const std::string& passwordIn = "", const std::string& user = "")
 {
-    std::string username;
     std::string password;
 
     std::cout << "Open Password Pairing requires a username. The username is a name you choose for the new user, the username has to be unique among the registered users on the device." << std::endl;
     std::cout << "New Username: ";
-    std::cin >> username;
+    std::cout << user;
     if (passwordIn.empty()) {
         std::cout << "Password: ";
         std::cin >> password;
     } else {
         password = passwordIn;
     }
-    return password_pair_password(connection, username, password);
+    return password_pair_password(connection, user, password);
 }
 
 static bool password_invite_pair_password(std::shared_ptr<nabto::client::Connection> connection, const std::string& username, const std::string& password)
@@ -215,7 +209,7 @@ std::string interactive_pair(std::shared_ptr<nabto::client::Context> Context)
     return interactive_pair_connection(connection);
 }
 
-std::string interactive_pair_connection(std::shared_ptr<nabto::client::Connection> connection, const std::string& usernameInvite, const std::string& password)
+std::string interactive_pair_connection(std::shared_ptr<nabto::client::Connection> connection, const std::string& usernameInvite, const std::string& password, const std::string& user)
 {
     {
         IAM::IAMError ec;
@@ -260,11 +254,11 @@ std::string interactive_pair_connection(std::shared_ptr<nabto::client::Connectio
             return "Error";
         }
     } else if (mode == IAM::PairingMode::LOCAL_OPEN) {
-         if (!local_pair_open_interactive(connection)) {
+         if (!local_pair_open_interactive(connection, user)) {
             return "Error";
         }
     } else if (mode == IAM::PairingMode::PASSWORD_OPEN) {
-        if (!password_pair_open_interactive(connection, password)) {
+        if (!password_pair_open_interactive(connection, password, user)) {
             return "Error";
         }
     } else if (mode == IAM::PairingMode::PASSWORD_INVITE) {
@@ -306,10 +300,10 @@ static std::map<std::string, std::string> parseStringArgs(const std::string pair
     return args;
 }
 
-std::string param_pair(std::shared_ptr<nabto::client::Context> ctx, const std::string& productId, const std::string& deviceId, const std::string& usernameInvite, const std::string& password, const std::string& sct);
+std::string param_pair(std::shared_ptr<nabto::client::Context> ctx, const std::string& productId, const std::string& deviceId, const std::string& usernameInvite, const std::string& password, const std::string& sct, const std::string& user);
 
 
-std::string string_pair(std::shared_ptr<nabto::client::Context> ctx, const std::string& pairingString)
+std::string string_pair(std::shared_ptr<nabto::client::Context> ctx, const std::string& pairingString, const std::string& user)
 {
     std::map<std::string, std::string> args = parseStringArgs(pairingString);
     std::string productId = args["p"];
@@ -319,10 +313,10 @@ std::string string_pair(std::shared_ptr<nabto::client::Context> ctx, const std::
     std::string usernameInvite = args["u"];
     std::cout<<usernameInvite<<std::endl;
 
-    return param_pair(ctx, productId, deviceId, usernameInvite, pairingPassword, sct);
+    return param_pair(ctx, productId, deviceId, usernameInvite, pairingPassword, sct, user);
 }
 
-std::string param_pair(std::shared_ptr<nabto::client::Context> ctx, const std::string& productId, const std::string& deviceId, const std::string& usernameInvite, const std::string& pairingPassword, const std::string& sct)
+std::string param_pair(std::shared_ptr<nabto::client::Context> ctx, const std::string& productId, const std::string& deviceId, const std::string& usernameInvite, const std::string& pairingPassword, const std::string& sct, const std::string& user)
 {
     auto Config = Configuration::GetConfigInfo();
     if (!Config) {
@@ -365,7 +359,7 @@ std::string param_pair(std::shared_ptr<nabto::client::Context> ctx, const std::s
 
     std::cout << "Connected to device ProductId: " <<  productId << " DeviceId: " << deviceId << std::endl;
 
-    return interactive_pair_connection(connection, usernameInvite, pairingPassword);
+    return interactive_pair_connection(connection, usernameInvite, pairingPassword, user);
 }
 
 std::string direct_pair(std::shared_ptr<nabto::client::Context> Context, const std::string& host)

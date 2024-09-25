@@ -366,8 +366,8 @@ MainWindow::~MainWindow()
 void MainWindow::on_pushButton_clicked()
 {
     auto context = nabto::client::Context::create();
-    std::string sct = ui -> lineEdit -> text().toStdString();
-    std::string str = string_pair(context, sct);
+    std::string sct = ui->lineEdit->text().toStdString();
+    std::string str = string_pair(context, sct, "user");
     ui->label->setText(QString::fromStdString(str));
     update_bookmarks();
 }

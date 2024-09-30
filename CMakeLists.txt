@@ -12,7 +12,7 @@ set(Qt6_DIR "~/Qt/6.7.2/gcc_64/lib/cmake/Qt6")
 set(CMAKE_AUTOMOC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
-find_package(Qt6 REQUIRED COMPONENTS Widgets LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Widgets LinguistTools Concurrent)
 
 include_directories(include .)
 include_directories(include/3rdparty)
@@ -56,7 +56,7 @@ set(src
 
 add_executable(edge_tunnel_client ${platform_src} ${src})
 target_link_libraries(edge_tunnel_client cpp_wrapper  ${CMAKE_THREAD_LIBS_INIT}
-Qt6::Widgets)
+Qt6::Widgets Qt::Concurrent)
 
 add_dependencies(edge_tunnel_client GENERATE_VERSION)
 

@@ -69,6 +69,11 @@
         "unordered_set": "cpp",
         "regex": "cpp",
         "variant": "cpp",
-        "qthread": "cpp"
+        "qthread": "cpp",
+        "qapplication": "cpp",
+        "qfuturewatcher": "cpp",
+        "qtconcurrent": "cpp",
+        "qlocale": "cpp",
+        "bitset": "cpp"
     },
 }

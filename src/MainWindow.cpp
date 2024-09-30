@@ -1,18 +1,8 @@
 #include "MainWindow.h"
 #include "./ui_mainwindow.h"
-#include <iostream>
 #include <nabto_client.hpp>
 #include <nabto/nabto_client_experimental.h>
-#include <map>
 
-#include "pairing.hpp"
-#include "config.hpp"
-#include "timestamp.hpp"
-#include "iam.hpp"
-#include "iam_interactive.hpp"
-#include <nabto_client.hpp>
-#include <nabto/nabto_client_experimental.h>
-#include <map>
 
 #include "pairing.hpp"
 #include "config.hpp"
@@ -20,15 +10,22 @@
 #include "iam.hpp"
 #include "iam_interactive.hpp"
 #include "version.hpp"
-#include <list>
-#include <vector>
-#include <3rdparty/cxxopts.hpp>
-#include <3rdparty/nlohmann/json.hpp>
-#include <iostream>
 
+#include <3rdparty/cxxopts.hpp>
+#include <iostream>
+#include <3rdparty/nlohmann/json.hpp>
+
+#include <QtConcurrent>
+#include <QFutureWatcher>
 #include <QApplication>
 #include <QLocale>
 #include <QTranslator>
+#include <QtConcurrent/QtConcurrent>
+#include <QFuture>
+
+#include <map>
+#include <list>
+#include <vector>
 #include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -43,9 +40,6 @@ enum {
   COAP_CONTENT_FORMAT_APPLICATION_CBOR = 60
 };
 
-
-
-// TODO reconnect when connection is closed.
 
 std::string generalHelp = R"(This client application is designed to be used with a tcp tunnel
 device application. The functionality of the system is to enable
@@ -365,36 +359,44 @@ MainWindow::~MainWindow()
 
 void MainWindow::on_pushButton_clicked()
 {
-    auto context = nabto::client::Context::create();
     std::string sct = ui->lineEdit->text().toStdString();
-    std::string str = string_pair(context, sct, "user");
+    std::string str = string_pair(context, sct, "users");
     ui->label->setText(QString::fromStdString(str));
     update_bookmarks();
 }
 
 
+
 void MainWindow::update_bookmarks() {
-    std::map<int, Configuration::DeviceInfo> services;
-    services = Configuration::PrintBookmarks();
-    int index = 0;
+    std::map<int, Configuration::DeviceInfo> services = Configuration::PrintBookmarks();
     ui -> listWidget-> clear();
 
-    for (const auto& bookmark : services) {
+    auto ctx = nabto::client::Context::create();
+
+    auto connectToDevice = [this, ctx](const std::pair<int, Configuration::DeviceInfo>& bookmark) {
         try {
-            std::shared_ptr<nabto::client::Context>  ctx = nabto::client::Context::create();
             auto d = Configuration::GetPairedDevice(bookmark.first);
             auto c = createConnection(ctx, *d);
             if (c != nullptr) {
-                IAM::IAMError ec; std::shared_ptr<IAM::PairingInfo> pi;
-                std::tie(ec, pi) = IAM::get_pairing_info(c);                
-                auto str= "Name: " + pi -> getFriendlyName() + "\tId:" + bookmark.second.deviceId_.c_str();
-                ui -> listWidget -> addItem(QString::fromStdString(str));
+                IAM::IAMError ec; 
+                std::shared_ptr<IAM::PairingInfo> pi;
+                std::tie(ec, pi) = IAM::get_pairing_info(c);
+                auto str = "Name: " + pi -> getFriendlyName() + "\tId:" + bookmark.second.deviceId_;
+                QMetaObject::invokeMethod(ui->listWidget, [this, str]() {
+                    ui -> listWidget -> addItem(QString::fromStdString(str));
+                }, Qt::QueuedConnection);
             }
         } catch (std::exception& e) {
-            std::cout << "Failed to open a tunnel to " << bookmark.second.deviceId_.c_str();
+            std::cout << "Failed to open a tunnel to " << bookmark.second.deviceId_.c_str() << std::endl;
         }
+    };
+
+    QList<QFuture<void>> futures;
+    for (const auto& bookmark : services) {
+        futures.append(QtConcurrent::run(connectToDevice, bookmark));
     }
 }
+
 
 
 void MainWindow::on_pushButton_2_clicked()
